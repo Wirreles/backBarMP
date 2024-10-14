@@ -63,11 +63,13 @@ app.post('/create_preference', async (req, res) => {
           },
         ],
         back_urls: {
-          success: 'http://localhost:9000/homeCliente',
+          success: 'http://localhost:9000/resumen',
           failure: 'http://localhost:9000/homeCliente',
         },
         auto_return: 'approved',
-        notification_url: 'https://backbarmp.onrender.com/payment_success'
+        // notification_url: 'https://backbarmp.onrender.com/payment_success',
+         notification_url: 'http://localhost:9000/payment_success'
+        
       }
     });
 
