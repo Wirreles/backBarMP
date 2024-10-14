@@ -41,7 +41,7 @@ app.use(express.json());
 
 // Ruta para crear la preferencia de pago
 app.post('/create_preference', async (req, res) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:9000');
+  res.header('Access-Control-Allow-Origin', 'gestion-bares.vercel.app');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
@@ -63,13 +63,12 @@ app.post('/create_preference', async (req, res) => {
           },
         ],
         back_urls: {
-          success: 'http://localhost:9000/resumen',
-          failure: 'http://localhost:9000/homeCliente',
+          success: 'gestion-bares.vercel.app/resumen',
+          failure: 'gestion-bares.vercel.app/homeCliente',
         },
         auto_return: 'approved',
-        // notification_url: 'https://backbarmp.onrender.com/payment_success',
-         notification_url: 'http://localhost:9000/payment_success'
-        
+        notification_url: 'https://backbarmp.onrender.com/payment_success',
+        //  notification_url: 'https://9180-2803-9800-b8ca-80aa-c8d2-65da-ed98-1687.ngrok-free.app/payment_success'
       }
     });
 
