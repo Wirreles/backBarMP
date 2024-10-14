@@ -41,7 +41,7 @@ app.use(express.json());
 
 // Ruta para crear la preferencia de pago
 app.post('/create_preference', async (req, res) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:4200');
+  res.header('Access-Control-Allow-Origin', 'http://localhost:9000');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
@@ -63,8 +63,8 @@ app.post('/create_preference', async (req, res) => {
           },
         ],
         back_urls: {
-          success: 'http://localhost:4200/homeCliente',
-          failure: 'http://localhost:4200/homeCliente',
+          success: 'http://localhost:9000/homeCliente',
+          failure: 'http://localhost:9000/homeCliente',
         },
         auto_return: 'approved',
         notification_url: 'https://backbarmp.onrender.com/payment_success'
