@@ -67,7 +67,7 @@ app.post('/create_preference', async (req, res) => {
           failure: 'http://localhost:4200/homeCliente',
         },
         auto_return: 'approved',
-        notification_url: 'https://3ccb-2803-9800-b8ca-80aa-4cf1-9bf0-c2a8-62b6.ngrok-free.app/payment_success'
+        notification_url: 'https://backbarmp.onrender.com/payment_success'
       }
     });
 
