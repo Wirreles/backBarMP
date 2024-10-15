@@ -41,7 +41,7 @@ app.use(express.json());
 
 // Ruta para crear la preferencia de pago
 app.post('/create_preference', async (req, res) => {
-  res.header('Access-Control-Allow-Origin', 'gestion-bares.vercel.app');
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
