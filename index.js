@@ -56,10 +56,10 @@ app.post('/create_preference', async (req, res) => {
       body: {
         items: [
           {
-            title: description,  // Usar la descripción que recibimos
-            quantity: 1,         // Cantidad fija (puede ajustarse si es necesario)
-            unit_price: totalAmount, // Usar el total calculado
-            currency_id: currency_id, // Usar la moneda enviada (ARS en este caso)
+            title: description,
+            quantity: 1,
+            unit_price: totalAmount,
+            currency_id: currency_id,
           },
         ],
         back_urls: {
@@ -68,7 +68,6 @@ app.post('/create_preference', async (req, res) => {
         },
         auto_return: 'approved',
         notification_url: 'https://backbarmp.onrender.com/payment_success',
-        //  notification_url: 'https://9180-2803-9800-b8ca-80aa-c8d2-65da-ed98-1687.ngrok-free.app/payment_success'
       }
     });
 
@@ -77,49 +76,42 @@ app.post('/create_preference', async (req, res) => {
 
     // Estructura de los datos de la compra que se guardarán en Firestore
     const orderData = {
-      userId: userId,           // Guardar el ID del usuario
-      description: description, // Descripción de la compra
-      totalAmount: totalAmount, // Total a pagar
-      currency_id: currency_id, // Moneda de la compra
-      isPaid: false,            // Campo para indicar si el usuario pagó (por defecto false)
-      preferenceId: result?.body?.id || result?.id, // ID de la preferencia generada por MercadoPago
-      status: 'pending',        // Estado inicial de la compra
-      orderId: orderId          // El ID generado para la compra
+      userId: userId,
+      description: description,
+      totalAmount: totalAmount,
+      currency_id: currency_id,
+      isPaid: false,
+      preferenceId: result?.body?.id || result?.id,
+      status: 'pending',
+      orderId: orderId
     };
 
     // Guardar los datos de la compra en Firestore en la colección "ordenesCompra"
     const orderDoc = firestore.collection('ordenesCompra').doc(orderId);
-    await orderDoc.set(orderData); // Guardar los datos de la compra
+    await orderDoc.set(orderData);
 
-    // Guardar datos en tempStorage para buscarlos después del pago
+    // Guardar datos en tempStorage
     const tempData = {
       userId: userId,
       totalAmount: totalAmount,
       orderId: orderId,
-      preferenceId: result?.body?.id || result?.id // ID de la preferencia para relacionar el pago
+      preferenceId: result?.body?.id || result?.id
     };
 
-    console.log('Guardando datos en tempStorage:', tempData);
-    console.log('ID generado para tempStorage:', orderId);
+    const tempDoc = firestore.collection('tempStorage').doc(orderId);
+    await tempDoc.set(tempData);
 
-
-    try {
-      // Guardar datos en tempStorage para buscarlos después del pago
-      const tempDoc = firestore.collection('tempStorage').doc(orderId); // Usar orderId como ID del documento
-      await tempDoc.set(tempData);
-    
-      console.log('Documento creado en tempStorage con ID:', orderId);
-    } catch (error) {
-      console.error('Error al crear el documento en tempStorage:', error);
-    }
-
-    // Devolver la respuesta con la preferencia creada
-    return res.json(result);
+    // Enviar la preferencia de MercadoPago y el ID de la orden al front-end
+    return res.json({
+      ...result,
+      orderId: orderId // Incluir el orderId en la respuesta
+    });
   } catch (error) {
     console.error('Error al crear la preferencia:', error);
     return res.status(500).json({ error: 'Error al crear la preferencia de pago' });
   }
 });
+
 
 
 // Implementación de la función para generar un ID único (similar a createIdDoc)
