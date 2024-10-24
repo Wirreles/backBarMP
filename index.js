@@ -46,7 +46,7 @@ app.post('/create_preference', async (req, res) => {
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   // Recibir description, totalAmount, currency_id, y userId desde el cuerpo de la solicitud
-  const { description, totalAmount, currency_id, userId } = req.body;
+  const { description, totalAmount, currency_id, userId, telefono } = req.body;
 
   try {
     // Crear la preferencia de pago para MercadoPago
@@ -83,7 +83,8 @@ app.post('/create_preference', async (req, res) => {
       isPaid: false,
       preferenceId: result?.body?.id || result?.id,
       status: 'pending',
-      orderId: orderId
+      orderId: orderId,
+      telefono: telefono
     };
 
     // Guardar los datos de la compra en Firestore en la colección "ordenesCompra"
