@@ -27,6 +27,8 @@ const client = new MercadoPagoConfig({
   accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN
 });
 
+const payment = new Payment(client);
+
 const app = express();
 const corsOptions = {
   origin: '*', // Cambia esto por el dominio permitido o usa '*' para todos.
@@ -63,11 +65,15 @@ app.post('/create_preference', async (req, res) => {
           },
         ],
         back_urls: {
-          success: 'gestion-bares.vercel.app/resumen',
-          failure: 'gestion-bares.vercel.app/homeCliente',
+          success: 'https://sistbar.com/resumen',
+          failure: 'https://sistbar.com/homeCliente',
         },
         auto_return: 'approved',
         notification_url: 'https://backbarmp.onrender.com/payment_success',
+        external_reference: userId,
+        metadata: {
+          userId: userId
+        }
       }
     });
 
@@ -78,11 +84,7 @@ app.post('/create_preference', async (req, res) => {
     const orderData = {
       userId: userId,
       description: description,
-      totalAmount: totalAmount,
-      currency_id: currency_id,
-      isPaid: false,
       preferenceId: result?.body?.id || result?.id,
-      status: 'pending',
       orderId: orderId,
       telefono: telefono
     };
@@ -90,17 +92,6 @@ app.post('/create_preference', async (req, res) => {
     // Guardar los datos de la compra en Firestore en la colección "ordenesCompra"
     const orderDoc = firestore.collection('ordenesCompra').doc(orderId);
     await orderDoc.set(orderData);
-
-    // Guardar datos en tempStorage
-    const tempData = {
-      userId: userId,
-      totalAmount: totalAmount,
-      orderId: orderId,
-      preferenceId: result?.body?.id || result?.id
-    };
-
-    const tempDoc = firestore.collection('tempStorage').doc(orderId);
-    await tempDoc.set(tempData);
 
     // Enviar la preferencia de MercadoPago y el ID de la orden al front-end
     return res.json({
@@ -121,57 +112,89 @@ function createIdDoc() {
 }
 
 
-
-
 // Ruta para manejar el pago exitoso
 app.post('/payment_success', async (req, res) => {
-  const dataId = req.query['id'];  // MercadoPago envía el ID del recurso
-  const type1 = req.query['topic'];  // MercadoPago envía el tipo de notificación en 'topic'
-  console.log("Payment success notification:", dataId, type1);
+  try {
+    const { type, data } = req.body;
 
-  if (type1 === 'payment') {
-    try {
-      // Buscar el pago en Mercado Pago usando el ID
-      const payment = new Payment(client);
-      const response = await payment.search(dataId);
-
-      if (!response || !response.results || response.results.length === 0) {
-        return res.status(404).json({ error: 'Payment not found' });
-      }
-
-      // Recuperar el documento temporal en tempStorage por medio del paymentId o algún otro identificador
-      const tempDataSnap = await firestore.collection('tempStorage').limit(1).get();
-
-      if (tempDataSnap.empty) {
-        return res.status(404).json({ error: 'No temp data found' });
-      }
-
-      // Acceder al primer documento (el único esperado)
-      const tempDoc = tempDataSnap.docs[0];
-      const tempData = tempDoc.data();
-
-      // Extraer el orderId de tempStorage
-      const { orderId, userId } = tempData;
-      console.log("order ID = " + orderId)
-      // Actualizar los campos de la orden en Firestore usando el orderId
-      const orderRef = firestore.collection('ordenesCompra').doc(orderId);
-      await orderRef.update({
-        isPaid: true,                   // El pago fue realizado exitosamente
-        paymentDate: new Date(),        // Fecha de pago
-        status: 'completed'             // Actualizar el estado a 'completed'
-      });
-
-      console.log("Deleting temp document with ID:", tempDoc.id);
-      await firestore.collection('tempStorage').doc(tempDoc.id).delete();
-
-
-      return res.status(200).json({ message: 'Payment processed successfully' });
-    } catch (error) {
-      console.error('Failed to process payment:', error);
-      return res.status(500).json({ error: 'Failed to process payment' });
+    // Verifica si el cuerpo tiene el formato esperado
+    if (!data || !data.id) {
+      console.error("Invalid webhook payload: Missing 'data.id'");
+      return res.status(400).json({ error: "Invalid webhook payload: Missing 'data.id'" });
     }
-  } else {
-    return res.status(400).json({ error: 'Invalid payment type' });
+
+    const paymentId = data.id;
+    console.log("Payment ID received from webhook: ", paymentId);
+    console.log("Notification type: ", type);
+
+    // Verifica si la notificación es del tipo "payment"
+    if (type !== "payment") {
+      console.warn(`Unhandled notification type: ${type}`);
+      return res.status(400).json({ error: `Unhandled notification type: ${type}` });
+    }
+
+    // Verifica que las credenciales de MercadoPago estén configuradas correctamente
+    if (!payment) {
+      console.error("MercadoPago SDK not initialized");
+      return res.status(500).json({ error: "Internal server error: MercadoPago SDK not initialized" });
+    }
+
+    let paymentInfo;
+    try {
+      // Realiza el get del pago usando el ID recibido
+      paymentInfo = await payment.get({ id: paymentId });
+      console.log("Payment Info: ", JSON.stringify(paymentInfo, null, 2));
+    } catch (error) {
+      console.error("Error fetching payment info: ", error);
+      return res.status(500).json({ error: "Error fetching payment info" });
+    }
+
+    // Verifica que el pago esté aprobado
+    if (!paymentInfo || paymentInfo.status !== "approved") {
+      console.error("Payment not approved or not found");
+      return res.status(400).json({ error: "Payment not approved or not found" });
+    }
+
+    const { external_reference, transaction_amount, payer } = paymentInfo;
+
+    if (!external_reference) {
+      console.error("No external reference found in payment info");
+      return res.status(400).json({ error: "No external reference found in payment info" });
+    }
+
+    console.log("External reference: ", external_reference);
+
+    // Buscar la orden en Firestore asociada al usuario con el external_reference y validar estado
+    const querySnapshot = await firestore
+      .collection("ordenesCompra")
+      .where("userId", "==", external_reference) // Buscar órdenes del usuario
+      .where("isPaid", "==", false)             // Asegura que no esté pagada
+      .where("status", "!=", "completed")       // Asegura que no esté completada
+      .get();
+
+    if (querySnapshot.empty) {
+      console.error(`No pending order found in Firestore for external_reference: ${external_reference}`);
+      return res.status(404).json({ error: "No pending order found" });
+    }
+
+    // Suponiendo que solo hay una orden pendiente
+    const orderDoc = querySnapshot.docs[0];
+    const orderRef = orderDoc.ref;
+
+    // Actualizar la orden con los datos del pago
+    await orderRef.update({
+      isPaid: true,                   // Marcar como pagada
+      paymentDate: new Date(),        // Registrar la fecha del pago
+      status: "completed",            // Cambiar el estado a completada
+      transactionAmount: transaction_amount, // Monto de la transacción
+      payerEmail: payer?.email || null,      // Email del pagador
+    });
+
+    console.log(`Order successfully updated in Firestore: ${orderRef.id}`);
+    return res.status(200).json({ message: "Payment processed successfully" });
+  } catch (error) {
+    console.error("Error handling payment webhook: ", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
